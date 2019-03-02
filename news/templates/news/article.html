@@ -1,0 +1,15 @@
+{% extends 'news/base.html' %}
+
+{% block content %}
+    <div class="date">
+    {% if date %}
+        {{ post.date }}
+    {% endif %}
+    </div>
+    <h1>{{ post.title }}</h1>
+    <div>
+        {% autoescape off %}
+        {{ post.text }}
+        {% endautoescape %}
+    </div>
+{% endblock %}
