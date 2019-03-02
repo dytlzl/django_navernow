@@ -28,22 +28,20 @@ class NaverNow:
         self.latest_uri = 'NULL'
 
     def fetch_posts(self):
+        from news.models import Post
+        obj = Post.objects.all().order_by('-pk')[0:1]
+        print('Connected.')
         try:
-            self.fetch_latest_post()
+            self.latest_uri = obj[0].uri
         except IndexError:
-            pass
+            print('Found no articles.')
         self.fetch_timeline()
         self.fetch_texts()
         self.contents.reverse()
-        self.register_to_db()
-
-    def fetch_latest_post(self):
-        from news.models import Post
-        obj = Post.objects.all().order_by('-pk')[0:1]
-        latest_uri = obj[0].uri
-        print(latest_uri)
-        self.latest_uri = latest_uri
-        print('Connected.')
+        for i in self.contents:
+            Post.objects.create(title=i['title'], uri=i['uri'], text=i['text'], date=i['date'],
+                                thumbnail=i['thumbnail'])
+        print('Registered.')
 
     def fetch_timeline(self):
         uri = self.PAGE_URI % {
@@ -55,6 +53,9 @@ class NaverNow:
         html_obj = lxml.html.fromstring(res.text).xpath('//*[@id="newsWrp"]/ul')[0]
         items = html_obj.xpath('.//li')
         if items[0].text == '기사가 없습니다.':
+            self.date -= datetime.timedelta(days=1)
+            self.page = 1
+            self.fetch_timeline()
             return
         for item in items:
             tit = item.xpath('.//*[@class="tit"]')[0]
@@ -92,25 +93,16 @@ class NaverNow:
             elif (time_str[11:13] == '오전') and (time_str[14:-3] == '12'):
                 time_str = time_str[:11] + str(int(time_str[14:-3]) - 12) + time_str[-3:]
             item['date'] = datetime.datetime.strptime(time_str, '%Y.%m.%d %H:%M')
-#            item['date'] = date.strftime('%Y/%m/%d %H:%M')
             text = lxml.html.tostring(html_obj.xpath('//*[@id="articeBody"]')[0], encoding="utf-8").decode()
             text = text.replace('\n', '')
             item['text'] = text.replace('\t', '')
             print('Fetched %s %s / %s' % (uri, count, len(self.contents)))
             time.sleep(0.1)
 
-    def register_to_db(self):
-        from news.models import Post
-        print('Connected.')
-        for i in self.contents:
-            Post.objects.create(title=i['title'], uri=i['uri'], text=i['text'], date=i['date'], thumbnail=i['thumbnail'])
-        print('Registered.')
-
 
 def main():
-    navernow = NaverNow()
-    navernow.fetch_posts()
-#   print(navernow.contents)
+    instance = NaverNow()
+    instance.fetch_posts()
 
 
 if __name__ == '__main__':
